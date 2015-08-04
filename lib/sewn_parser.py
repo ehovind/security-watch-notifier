@@ -1,0 +1,114 @@
+"""
+This file is part of Security Watch Notifier (sewn.py).
+Copyright (C) 2015 Espen Hovind <espehov@ifi.uio.no>
+
+sewn.py is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+sewn.py is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with sewn.py.  If not, see <http://www.gnu.org/licenses/>.
+"""
+import urllib
+from lxml import etree
+import time
+import sched
+import dbus
+import jinja2
+import datetime
+
+class SEWNParser(object):
+    first_run = True
+
+    def __init__(self, cfg, logger, articles, event):
+        self.cfg = cfg
+        self.logger = logger
+        self.articles = articles
+        self.event = event
+
+        self.parser = self.init_parser()
+        self.notifier = self.init_notifier()
+        self.scheduler = self.init_scheduler()
+
+    def init_parser(self):
+        return etree.XMLParser(ns_clean=False, recover=True)
+
+    def init_scheduler(self):
+        return sched.scheduler(time.time, time.sleep)
+
+    def init_notifier(self):
+        try:
+            bus = dbus.SessionBus()
+            notify_proxy = bus.get_object(self.cfg.get('dbus', 'item'),
+                                          self.cfg.get('dbus', 'path'))
+            return dbus.Interface(notify_proxy, self.cfg.get('dbus', 'interface'))
+        except dbus.exceptions.DBusException as err:
+            self.logger.error("Failed dbus setup: %s" % err)
+
+    def load_rss_feed(self, feed):
+        try:
+            self.logger.info("Loading RSS feed: %s", feed)
+            response = urllib.request.urlopen(feed)
+            self.logger.debug("feed: %s | headers: %s" % (feed, response.info()._headers))
+            return etree.parse(response, self.parser)
+        except (IOError, etree.XMLSyntaxError) as err:
+            self.logger.error("Failed parsing rss feed: %s" % err)
+
+    def is_new(self, title):
+        """ Check if article is never before seen. """
+        if not self.articles:
+            return True
+        return title not in self.articles
+
+    def add_article(self, title):
+        self.articles.append(title)
+
+    def next_check_feed(self, next_check, func, *args):
+        time_now = datetime.datetime.now()
+        next_datetime = time_now + datetime.timedelta(seconds=next_check)
+        self.logger.info("Next check at: %s (%s)",
+                         next_datetime.strftime('%Y-%m-%d %H:%M:%S'), args)
+
+        # Schedule another check at next_datetime
+        self.scheduler.enter(next_check, 1, func, *args)
+
+        # Run the scheduled event. If shutdown event is set during wait,
+        # unblock and since run() is execture before check, it is skipped.
+        self.event.wait(next_check)
+        self.scheduler.run(blocking=False)
+        self.event.clear()
+
+    def notify(self, source, link, title, actions=[], hints={}):
+        """
+        Method signature: https://developer.gnome.org/notification-spec/
+        """
+        # Require user to acknowledge selected Security news
+        keywords = self.cfg.get('main', 'ack_keywords').split(',')
+        if any(keyword.lower() in title.lower() for keyword in keywords):
+            hints = {'urgency': dbus.Byte(2)}
+            actions = ['0', 'Acknowledge']
+        else:
+            hints = {'urgency': dbus.Byte(1)}
+
+        try:
+            env = jinja2.Environment(loader=jinja2.PackageLoader('sewn', 'templates'))
+            template = env.get_template('notification.jin')
+            message = template.render(data=(source, title, link))
+            summary = message.splitlines()[0]
+            description = '\r'.join(message.splitlines()[1:])
+
+            self.notifier.Notify(self.cfg.get('dbus', 'app_name'), dbus.UInt32(0),
+                                 self.cfg.get('dbus', 'app_icon'), summary, description,
+                                 actions, hints, self.cfg.getint('dbus', 'timeout'))
+            # Throttle notifications
+            time.sleep(self.cfg.getint('dbus', 'delay'))
+        except jinja2.TemplateError as err:
+            self.logger.error("Failed constructing message: %s" % err)
+        except dbus.exceptions.DBusException as err:
+            self.logger.error("Failed sending notification: %s" % err)

@@ -1,0 +1,6 @@
+*.swp
+NOTES
+logs/
+old/
+__pycache__
+lib/__pycache__
