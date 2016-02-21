@@ -131,9 +131,14 @@ class SecurityWatchNotifier(object):
                 if thread_no == 0:
                     SEWNParser.first_run = False
                 self.logger.debug("Passed barrier: %s", threading.current_thread())
+                parser.start_scheduler(next_check, self.parse_sources,
+                                       (parser, source, feed, next_check))
+            else:
+                parser.next_check_feed(next_check, self.parse_sources,
+                                       (parser, source, feed, next_check))
+
         except AssertionError as err:
             self.logger.debug("Failed parsing feed: %s (%s)" % (feed, err))
-        finally:
             parser.next_check_feed(next_check, self.parse_sources,
                                    (parser, source, feed, next_check))
 

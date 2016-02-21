@@ -25,6 +25,7 @@ import datetime
 
 class SEWNParser(object):
     first_run = True
+    sched_priority = 1
 
     def __init__(self, cfg, logger, articles, event):
         self.cfg = cfg
@@ -42,6 +43,15 @@ class SEWNParser(object):
     def init_scheduler(self):
         return sched.scheduler(time.time, time.sleep)
 
+    def start_scheduler(self, next_check, func, *args):
+        self.scheduler.enter(next_check, self.sched_priority, func, *args)
+
+        # Run the scheduled event. If shutdown event is set during wait,
+        # unblock and since run() event is execute before check, it is skipped.
+        self.event.wait(next_check)
+        self.scheduler.run(blocking=False)
+        self.event.clear()
+
     def init_notifier(self):
         try:
             bus = dbus.SessionBus()
@@ -58,7 +68,7 @@ class SEWNParser(object):
             self.logger.debug("feed: %s | headers: %s" % (feed, response.info()._headers))
             return etree.parse(response, self.parser)
         except (IOError, etree.XMLSyntaxError) as err:
-            self.logger.error("Failed parsing rss feed: %s" % err)
+            self.logger.error("Failed parsing rss feed: %s (%s)" % (feed, err))
 
     def is_new(self, title):
         """ Check if article is never before seen. """
@@ -76,12 +86,11 @@ class SEWNParser(object):
                          next_datetime.strftime('%Y-%m-%d %H:%M:%S'), args)
 
         # Schedule another check at next_datetime
-        self.scheduler.enter(next_check, 1, func, *args)
+        self.scheduler.enter(next_check, self.sched_priority, func, *args)
 
         # Run the scheduled event. If shutdown event is set during wait,
-        # unblock and since run() is execture before check, it is skipped.
+        # unblock and skip run.
         self.event.wait(next_check)
-        self.scheduler.run(blocking=False)
         self.event.clear()
 
     def notify(self, source, link, title, actions=[], hints={}):
