@@ -22,6 +22,7 @@ import sched
 import dbus
 import jinja2
 import datetime
+import unicodedata
 
 class SEWNParser(object):
     first_run = True
@@ -63,12 +64,12 @@ class SEWNParser(object):
 
     def load_rss_feed(self, feed):
         try:
-            self.logger.info("Loading RSS feed: %s", feed)
+            self.logger.info("Loading feed: %s", feed)
             response = urllib.request.urlopen(feed)
             self.logger.debug("feed: %s | headers: %s" % (feed, response.info()._headers))
             return etree.parse(response, self.parser)
         except (IOError, etree.XMLSyntaxError) as err:
-            self.logger.error("Failed parsing rss feed: %s (%s)" % (feed, err))
+            self.logger.error("Failed parsing feed: %s (%s)" % (feed, err))
 
     def is_new(self, title):
         """ Check if article is never before seen. """
@@ -78,6 +79,16 @@ class SEWNParser(object):
 
     def add_article(self, title):
         self.articles.append(title)
+
+    def sanitize(self, title):
+        # Remap white space and carriage return
+        remap = {ord('\t'): ' ',
+                 ord('\f'): ' ',
+                 ord('\r'): None,
+                 ord('\n'): None}
+
+        # Normalize unicode
+        return unicodedata.normalize('NFC', title.translate(remap))
 
     def next_check_feed(self, next_check, func, *args):
         time_now = datetime.datetime.now()

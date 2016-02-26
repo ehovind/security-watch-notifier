@@ -18,26 +18,19 @@ along with sewn.py.  If not, see <http://www.gnu.org/licenses/>.
 from lxml import etree
 from lib.sewn_parser import SEWNParser
 
-
-class SEWNParserXML(SEWNParser):
+class SEWNParserGMANE(SEWNParser):
 
     def parse(self, source, feed, keyword, next_check):
-        """
-        <feed><entry><title>title</feed></entry></title>
-        <feed><entry><link>link</feed></entry></link>
-        """
         new_posts = list()
         doc = super().load_rss_feed(feed)
-
         try:
-            ns = {'atom': 'http://www.w3.org/2005/Atom'}
-            path = '//atom:feed/atom:entry/atom:title|//atom:feed/atom:entry/atom:link'
-            entries = doc.xpath(path, namespaces=ns)
-            articles = zip(entries[::2], entries[1::2])
-
-            for article in articles:
-                title = article[0].text
-                link = article[1].get('href')
+            ns = {"purl" : "http://purl.org/rss/1.0/"}
+            for article in doc.iterfind('purl:item', namespaces=ns):
+                title = article.findtext("purl:title", namespaces=ns)
+                link = article.findtext("purl:link", namespaces=ns)
+                # If keyword is defined, only add selected articles
+                if keyword and not title.startswith(keyword):
+                    continue
                 new_posts.append((source, super().sanitize(title), link))
         except etree.XMLSyntaxError as err:
             self.logger.error("Failed parsing: %s (%s)" % (source, err))

@@ -20,7 +20,7 @@ from lib.sewn_parser import SEWNParser
 
 class SEWNParserRSS(SEWNParser):
 
-    def parse(self, source, feed, next_check):
+    def parse(self, source, feed, keyword, next_check):
         new_posts = list()
         doc = super().load_rss_feed(feed)
 
@@ -28,7 +28,7 @@ class SEWNParserRSS(SEWNParser):
             for article in doc.iterfind('channel/item'):
                 title = article.findtext('title')
                 link = article.findtext('link')
-                new_posts.append((source, title, link))
+                new_posts.append((source, super().sanitize(title), link))
         except etree.XMLSyntaxError as err:
             self.logger.error("Failed parsing: %s (%s)" % (source, err))
 

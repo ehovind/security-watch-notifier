@@ -29,6 +29,7 @@ from lib.sewn_parser import SEWNParser
 from lib.sewn_parser_rss import SEWNParserRSS
 from lib.sewn_parser_xml import SEWNParserXML
 from lib.sewn_parser_reddit import SEWNParserReddit
+from lib.sewn_parser_gmane import SEWNParserGMANE
 
 
 class SecurityWatchNotifier(object):
@@ -50,6 +51,7 @@ class SecurityWatchNotifier(object):
         self.sewn_parser_rss = SEWNParserRSS(self.cfg, self.logger, self.articles, self.event)
         self.sewn_parser_xml = SEWNParserXML(self.cfg, self.logger, self.articles, self.event)
         self.sewn_parser_reddit = SEWNParserReddit(self.cfg, self.logger, self.articles, self.event)
+        self.sewn_parser_gmane = SEWNParserGMANE(self.cfg, self.logger, self.articles, self.event)
 
         signal.signal(signal.SIGINT, self.cleanup)
         signal.signal(signal.SIGTERM, self.cleanup)
@@ -86,27 +88,34 @@ class SecurityWatchNotifier(object):
             feed = self.sources.get(source, 'feed')
             next_check = self.sources.getint(source, 'check_interval')
 
+            try:
+                keyword = self.sources.get(source, 'keyword')
+            except configparser.NoOptionError:
+                keyword = None
+
             if self.sources.get(source, 'type') == 'rss':
                 parser = self.sewn_parser_rss
             elif self.sources.get(source, 'type') == 'xml':
                 parser = self.sewn_parser_xml
             elif self.sources.get(source, 'type') == 'reddit':
                 parser = self.sewn_parser_reddit
+            elif self.sources.get(source, 'type') == 'gmane':
+                parser = self.sewn_parser_gmane
             else:
                 continue
 
             t = threading.Thread(target=self.parse_sources,
-                                 args=(parser, source, feed, next_check), name=source)
+                                 args=(parser, source, feed, keyword, next_check), name=source)
             t.start()
             self.logger.debug("Active threads: %d", threading.active_count())
 
-    def parse_sources(self, parser, source, feed, next_check):
+    def parse_sources(self, parser, source, feed, keyword, next_check):
         try:
             """
             articles -> tuple(source, title, link)
             """
             self.logger.debug("Parsing: %s", threading.current_thread())
-            articles = parser.parse(source, feed, next_check)
+            articles = parser.parse(source, feed, keyword, next_check)
             new_articles = [art for art in articles if parser.is_new(art[1])]
 
             for source, title, link in new_articles:
@@ -132,15 +141,15 @@ class SecurityWatchNotifier(object):
                     SEWNParser.first_run = False
                 self.logger.debug("Passed barrier: %s", threading.current_thread())
                 parser.start_scheduler(next_check, self.parse_sources,
-                                       (parser, source, feed, next_check))
+                                       (parser, source, feed, keyword, next_check))
             else:
                 parser.next_check_feed(next_check, self.parse_sources,
-                                       (parser, source, feed, next_check))
+                                       (parser, source, feed, keyword, next_check))
 
         except AssertionError as err:
             self.logger.debug("Failed parsing feed: %s (%s)" % (feed, err))
             parser.next_check_feed(next_check, self.parse_sources,
-                                   (parser, source, feed, next_check))
+                                   (parser, source, feed, keyword, next_check))
 
     def cleanup(self, signo, frame):
         print("sewn.py shutting down..")

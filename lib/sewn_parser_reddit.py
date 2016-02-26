@@ -34,13 +34,13 @@ class SEWNParserReddit(SEWNParser):
         except (IOError) as err:
             self.logger.error("Failed parsing reddit feed: %s" % err)
 
-    def parse(self, source, feed, next_check):
+    def parse(self, source, feed, keyword, next_check):
         new_posts = list()
         data = self.load_rss_feed(feed)
 
         for submission in (data['data']['children']):
             title = submission['data']['title']
             link = submission['data']['permalink']
-            new_posts.append((source, title, "https://www.reddit.com%s" % link))
+            new_posts.append((source, super().sanitize(title), "https://www.reddit.com%s" % link))
 
         return new_posts
