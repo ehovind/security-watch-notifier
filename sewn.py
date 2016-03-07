@@ -30,6 +30,7 @@ from lib.sewn_parser_rss import SEWNParserRSS
 from lib.sewn_parser_xml import SEWNParserXML
 from lib.sewn_parser_reddit import SEWNParserReddit
 from lib.sewn_parser_gmane import SEWNParserGMANE
+from lib.sewn_parser_atom import SEWNParserAtom
 
 
 class SecurityWatchNotifier(object):
@@ -52,6 +53,7 @@ class SecurityWatchNotifier(object):
         self.sewn_parser_xml = SEWNParserXML(self.cfg, self.logger, self.articles, self.event)
         self.sewn_parser_reddit = SEWNParserReddit(self.cfg, self.logger, self.articles, self.event)
         self.sewn_parser_gmane = SEWNParserGMANE(self.cfg, self.logger, self.articles, self.event)
+        self.sewn_parser_atom = SEWNParserAtom(self.cfg, self.logger, self.articles, self.event)
 
         signal.signal(signal.SIGINT, self.cleanup)
         signal.signal(signal.SIGTERM, self.cleanup)
@@ -101,6 +103,8 @@ class SecurityWatchNotifier(object):
                 parser = self.sewn_parser_reddit
             elif self.sources.get(source, 'type') == 'gmane':
                 parser = self.sewn_parser_gmane
+            elif self.sources.get(source, 'type') == 'atom':
+                parser = self.sewn_parser_atom
             else:
                 continue
 
