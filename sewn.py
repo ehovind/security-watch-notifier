@@ -31,6 +31,7 @@ from lib.sewn_parser_xml import SEWNParserXML
 from lib.sewn_parser_reddit import SEWNParserReddit
 from lib.sewn_parser_gmane import SEWNParserGMANE
 from lib.sewn_parser_atom import SEWNParserAtom
+import lib.sewn_exceptions as SEWNExceptions
 
 
 class SecurityWatchNotifier(object):
@@ -111,7 +112,7 @@ class SecurityWatchNotifier(object):
             t = threading.Thread(target=self.parse_sources,
                                  args=(parser, source, feed, keyword, next_check), name=source)
             t.start()
-            self.logger.debug("Active threads: %d", threading.active_count())
+            self.logger.debug("Active threads (run): %d", threading.active_count())
 
     def parse_sources(self, parser, source, feed, keyword, next_check):
         try:
@@ -119,6 +120,7 @@ class SecurityWatchNotifier(object):
             articles -> tuple(source, title, link)
             """
             self.logger.debug("Parsing: %s", threading.current_thread())
+
             articles = parser.parse(source, feed, keyword, next_check)
             new_articles = [art for art in articles if parser.is_new(art[1])]
 
@@ -150,8 +152,8 @@ class SecurityWatchNotifier(object):
                 parser.next_check_feed(next_check, self.parse_sources,
                                        (parser, source, feed, keyword, next_check))
 
-        except AssertionError as err:
-            self.logger.debug("Failed parsing feed: %s (%s)" % (feed, err))
+        except SEWNExceptions.ArticleParseFailed as err:
+            self.logger.error("Failed parsing feed: %s (%s)" % (err.source, err.message))
             parser.next_check_feed(next_check, self.parse_sources,
                                    (parser, source, feed, keyword, next_check))
 

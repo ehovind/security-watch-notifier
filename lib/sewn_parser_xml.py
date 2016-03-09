@@ -17,12 +17,13 @@ along with sewn.py.  If not, see <http://www.gnu.org/licenses/>.
 """
 from lxml import etree
 from lib.sewn_parser import SEWNParser
-
+import lib.sewn_exceptions as SEWNExceptions
 
 class SEWNParserXML(SEWNParser):
 
     def parse(self, source, feed, keyword, next_check):
         """
+        Format:
         <feed><entry><title>title</feed></entry></title>
         <feed><entry><link>link</feed></entry></link>
         """
@@ -39,7 +40,7 @@ class SEWNParserXML(SEWNParser):
                 title = article[0].text
                 link = article[1].get('href')
                 new_posts.append((source, super().sanitize(title), link))
-        except etree.XMLSyntaxError as err:
-            self.logger.error("Failed parsing: %s (%s)" % (source, err))
+        except (AttributeError, etree.XMLSyntaxError) as err:
+            raise SEWNExceptions.ArticleParseFailed(source, err)
 
         return new_posts

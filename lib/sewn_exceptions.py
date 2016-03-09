@@ -15,23 +15,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with sewn.py.  If not, see <http://www.gnu.org/licenses/>.
 """
-from lxml import etree
-from lib.sewn_parser import SEWNParser
-import lib.sewn_exceptions as SEWNExceptions
-
-class SEWNParserRSS(SEWNParser):
-
-    def parse(self, source, feed, keyword, next_check):
-        new_posts = list()
-
-        doc = super().load_rss_feed(feed)
-
-        try:
-            for article in doc.iterfind('channel/item'):
-                title = article.findtext('title')
-                link = article.findtext('link')
-                new_posts.append((source, super().sanitize(title), link))
-        except (AttributeError, etree.XMLSyntaxError) as err:
-            raise SEWNExceptions.ArticleParseFailed(source, err)
-
-        return new_posts
+class ArticleParseFailed(Exception):
+    """ Raise an exception when fail parsing articles """
+    def __init__(self, source, message):
+        self.source = source
+        self.message = message

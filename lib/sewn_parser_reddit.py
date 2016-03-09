@@ -16,7 +16,9 @@ You should have received a copy of the GNU General Public License
 along with sewn.py.  If not, see <http://www.gnu.org/licenses/>.
 """
 import requests
+import json
 from lib.sewn_parser import SEWNParser
+import lib.sewn_exceptions as SEWNExceptions
 
 class SEWNParserReddit(SEWNParser):
     def __init__(self, cfg, logger, articles, event):
@@ -31,16 +33,22 @@ class SEWNParserReddit(SEWNParser):
             response = requests.get(feed, headers=headers)
             self.logger.debug("feed: %s | headers: %s" % (feed, response.headers))
             return response.json()
-        except (IOError) as err:
-            self.logger.error("Failed parsing reddit feed: %s" % err)
+        except (IOError, json.decoder.JSONDecodeError) as err:
+            self.logger.error("Failed loading reddit feed: %s" % err)
+            return None
 
     def parse(self, source, feed, keyword, next_check):
         new_posts = list()
+
         data = self.load_rss_feed(feed)
 
-        for submission in (data['data']['children']):
-            title = submission['data']['title']
-            link = submission['data']['permalink']
-            new_posts.append((source, super().sanitize(title), "https://www.reddit.com%s" % link))
+        try:
+            for submission in (data['data']['children']):
+                title = submission['data']['title']
+                link = submission['data']['permalink']
+                new_posts.append((source, super().sanitize(title), "https://www.reddit.com%s" % link))
+
+        except (AttributeError, TypeError) as err:
+            raise SEWNExceptions.ArticleParseFailed(source, err)
 
         return new_posts

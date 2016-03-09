@@ -69,7 +69,8 @@ class SEWNParser(object):
             self.logger.debug("feed: %s | headers: %s" % (feed, response.info()._headers))
             return etree.parse(response, self.parser)
         except (IOError, etree.XMLSyntaxError) as err:
-            self.logger.error("Failed parsing feed: %s (%s)" % (feed, err))
+            self.logger.error("Failed loading feed: %s (%s)" % (feed, err))
+            return None
 
     def is_new(self, title):
         """ Check if article is never before seen. """

@@ -17,14 +17,17 @@ along with sewn.py.  If not, see <http://www.gnu.org/licenses/>.
 """
 from lxml import etree
 from lib.sewn_parser import SEWNParser
+import lib.sewn_exceptions as SEWNExceptions
 
 class SEWNParserGMANE(SEWNParser):
 
     def parse(self, source, feed, keyword, next_check):
         new_posts = list()
+
         doc = super().load_rss_feed(feed)
+
         try:
-            ns = {"purl" : "http://purl.org/rss/1.0/"}
+            ns = {"purl": "http://purl.org/rss/1.0/"}
             for article in doc.iterfind('purl:item', namespaces=ns):
                 title = article.findtext("purl:title", namespaces=ns)
                 link = article.findtext("purl:link", namespaces=ns)
@@ -32,7 +35,7 @@ class SEWNParserGMANE(SEWNParser):
                 if keyword and not title.startswith(keyword):
                     continue
                 new_posts.append((source, super().sanitize(title), link))
-        except etree.XMLSyntaxError as err:
-            self.logger.error("Failed parsing: %s (%s)" % (source, err))
+        except (AttributeError, etree.XMLSyntaxError) as err:
+            raise SEWNExceptions.ArticleParseFailed(source, err)
 
         return new_posts

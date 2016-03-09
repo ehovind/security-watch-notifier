@@ -17,11 +17,13 @@ along with sewn.py.  If not, see <http://www.gnu.org/licenses/>.
 """
 from lxml import etree
 from lib.sewn_parser import SEWNParser
+import lib.sewn_exceptions as SEWNExceptions
 
 class SEWNParserAtom(SEWNParser):
 
     def parse(self, source, feed, keyword, next_check):
         new_posts = list()
+
         doc = super().load_rss_feed(feed)
 
         ns = {"atom": "http://www.w3.org/2005/Atom"}
@@ -30,7 +32,7 @@ class SEWNParserAtom(SEWNParser):
                 title = article.findtext("atom:title", namespaces=ns)
                 link = article.find(".//atom:link[@rel='alternate']", namespaces=ns).get('href')
                 new_posts.append((source, super().sanitize(title), link))
-        except (etree.XMLSyntaxError, AttributeError) as err:
-            self.logger.error("Failed parsing: %s (%s)" % (source, err))
+        except (AttributeError, etree.XMLSyntaxError) as err:
+            raise SEWNExceptions.ArticleParseFailed(source, err)
 
         return new_posts
