@@ -21,14 +21,17 @@ import lib.sewn_exceptions as SEWNExceptions
 
 class SEWNParserXML(SEWNParser):
 
-    def parse(self, source, feed, keyword, next_check):
+    def parse(self, source, feed, keywords, next_check, identify):
         """
-        Format:
+        Load feed and parse articles to find title and link.
+        If keyword is defined, only add selected articles.
+
+        XML format:
         <feed><entry><title>title</feed></entry></title>
         <feed><entry><link>link</feed></entry></link>
         """
         new_posts = list()
-        doc = super().load_rss_feed(feed)
+        doc = super().load_feed(feed)
 
         try:
             ns = {'atom': 'http://www.w3.org/2005/Atom'}
@@ -39,6 +42,8 @@ class SEWNParserXML(SEWNParser):
             for article in articles:
                 title = article[0].text
                 link = article[1].get('href')
+                if keywords and not super().check_keyword(title, keywords):
+                    continue
                 new_posts.append((source, super().sanitize(title), link))
         except (AttributeError, etree.XMLSyntaxError) as err:
             raise SEWNExceptions.ArticleParseFailed(source, err)

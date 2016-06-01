@@ -45,6 +45,7 @@ class SEWNParser(object):
         return sched.scheduler(time.time, time.sleep)
 
     def start_scheduler(self, next_check, func, *args):
+        self.logger.debug("Starting scheduler, next check in %s seconds (%s)", next_check, args)
         self.scheduler.enter(next_check, self.sched_priority, func, *args)
 
         # Run the scheduled event. If shutdown event is set during wait,
@@ -62,15 +63,22 @@ class SEWNParser(object):
         except dbus.exceptions.DBusException as err:
             self.logger.error("Failed dbus setup: %s" % err)
 
-    def load_rss_feed(self, feed):
+    def load_feed(self, feed, identify=False):
         try:
+            request = urllib.request.Request(feed)
+            if identify:
+                request.add_header('From', self.cfg.get('main', 'from'))
+                request.add_header('User-Agent', self.cfg.get('main', 'user_agent'))
             self.logger.info("Loading feed: %s", feed)
-            response = urllib.request.urlopen(feed)
+            response = urllib.request.urlopen(request)
             self.logger.debug("feed: %s | headers: %s" % (feed, response.info()._headers))
             return etree.parse(response, self.parser)
         except (IOError, etree.XMLSyntaxError) as err:
             self.logger.error("Failed loading feed: %s (%s)" % (feed, err))
             return None
+
+    def check_keyword(self, title, keywords):
+        return any(keyword.lower() in title.lower() for keyword in keywords)
 
     def is_new(self, title):
         """ Check if article is never before seen. """
@@ -94,8 +102,8 @@ class SEWNParser(object):
     def next_check_feed(self, next_check, func, *args):
         time_now = datetime.datetime.now()
         next_datetime = time_now + datetime.timedelta(seconds=next_check)
-        self.logger.info("Next check at: %s (%s)",
-                         next_datetime.strftime('%Y-%m-%d %H:%M:%S'), args)
+        self.logger.debug("Next check at: %s (%s)",
+                          next_datetime.strftime('%Y-%m-%d %H:%M:%S'), args)
 
         # Schedule another check at next_datetime
         self.scheduler.enter(next_check, self.sched_priority, func, *args)

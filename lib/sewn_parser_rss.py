@@ -21,15 +21,20 @@ import lib.sewn_exceptions as SEWNExceptions
 
 class SEWNParserRSS(SEWNParser):
 
-    def parse(self, source, feed, keyword, next_check):
+    def parse(self, source, feed, keywords, next_check, identify):
+        """
+        Load feed and parse articles to find title and link.
+        If keyword is defined, only add selected articles.
+        """
         new_posts = list()
-
-        doc = super().load_rss_feed(feed)
+        doc = super().load_feed(feed, identify)
 
         try:
             for article in doc.iterfind('channel/item'):
                 title = article.findtext('title')
                 link = article.findtext('link')
+                if keywords and not super().check_keyword(title, keywords):
+                    continue
                 new_posts.append((source, super().sanitize(title), link))
         except (AttributeError, etree.XMLSyntaxError) as err:
             raise SEWNExceptions.ArticleParseFailed(source, err)
